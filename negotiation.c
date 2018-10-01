@@ -20,6 +20,9 @@ typedef struct player {
 
 // Forward declare functions
 void createDeck();
+int cardPickingControl(player *dealer);
+void displayWinner(player *dealer, player *reciever);
+int actionCardControl(player *dealer, player *reciever, card *actionCard);
 void printScores(player *dealer, player *reciever);
 void shuffle(card **array, size_t n);
 void initializePlayer(player* p, char *name);
@@ -41,7 +44,6 @@ static size_t deckSize = CARD_COUNT;
 static card ** field;
 static size_t fieldSize = 0;
 
-// Main game loop
 int main(int argc, char *argv[]) {
 
     // Check if the user has entered the correct arguments to play the game
@@ -70,71 +72,32 @@ int main(int argc, char *argv[]) {
     printf("%s's turn!\n\n", dealer->name);
 
     while (deckSize > 0) {
-        char *line = NULL;
-        size_t sizeCap = 0;
-        ssize_t lineLen = 0;
-
-        // Clear screen hopefully
         printf("Current hand:\n");
         displayHand(dealer->hand, dealer->handSize);
-        printf("\n");
 
-        // displayNewTurnInfo();
         card *actionCard = drawCards(dealer, 1);
         printf("Action card: ");
         displayCard(actionCard, 0);
         printScores(dealer, reciever);
 
         while (1) {
-            printf("To use action card, enter Y. To discard, enter N\n");
-            printf("If you use the action card and the value is even, you will take a random card from your opponent\n");
-            printf("And your opponents score will increase by the value. If the value is odd, you will give a random card\n");
-            printf("to your opponent but their score will decrease by the value of the card\n");
-            lineLen = getline(&line, &sizeCap, stdin);
-            line[lineLen-1] = '\0';
-
-            if (strcmp(line, "Y") == 0) {
-                card *removedCard;
-                if (actionCard->value % 2 == 0) {
-                    removedCard = removeCard(reciever, (reciever->handSize)-1);
-                    addCard(dealer, removedCard);
-                } else {
-                    card *removedCard = removeCard(dealer, (dealer->handSize)-1);
-                    addCard(reciever, removedCard);
-                }
-                changeScore(reciever, removedCard);
-
-                break;
-
-            } else if (strcmp(line, "N") == 0) {
-                card *removedCard =removeCard(dealer, (dealer->handSize)-1);
-                free(removedCard);
+            if (actionCardControl(dealer, reciever, actionCard) == 1) {
+                printf("\n");
                 break;
             }
         }
 
         drawCards(dealer, 5);
-        printf("\n");
         displayHand(dealer->hand, dealer->handSize);
 
         while (1) {
-            printf("Pick five cards to place on the field\n");
-            printf("Enter the cards by entering their indecies in a row\n");
-            printf("Do not put any spaces at the beginning or end. EX: 3 5 8 2 9\n");
-            lineLen = getline(&line, &sizeCap, stdin);
-
-            int *indecies = isLineValid(dealer, line);
-            if (indecies != NULL) {
-                for (size_t i = 0; i < 5; i++) {
-                    card *removedCard = removeCard(dealer, indecies[i]-1);
-                    addCardToField(removedCard);
-                }
-
+            if (cardPickingControl(dealer) == 1) {
+                printf("\n");
                 break;
             }
         }
 
-        printf("\nCurrent Field:\n");
+        printf("Current Field:\n");
         displayHand(field, fieldSize);
 
         printf("Turn finished. Moving to %s's turn!\n", reciever->name);
@@ -149,16 +112,7 @@ int main(int argc, char *argv[]) {
         chooseCardsOnField(dealer, reciever);
     }
 
-    printf("%s's score: %d. %s's score: %d\n", dealer->name, dealer->score,
-                        reciever->name, reciever->score);
-    if (dealer->score > reciever->score) {
-        printf("%s wins!\n", dealer->name);
-    } else if (reciever->score > dealer->score) {
-        printf("%s wins!\n", reciever->name);
-    } else {
-        printf("It's a tie!\n");
-    }
-
+    displayWinner(dealer, reciever);
     return 0;
 }
 
@@ -169,6 +123,78 @@ void initializePlayer(player *p, char *name) {
     p->handSize = 0;
     p->score = 0;
     drawCards(p, 4);
+}
+
+// Helper that controls the card picking functionality
+int cardPickingControl(player *dealer) {
+    printf("Pick five cards to place on the field\n");
+    printf("Enter the cards by entering their indecies in a row\n");
+    printf("Do not put any spaces at the beginning or end. EX: 3 5 8 2 9\n");
+
+    char *line = NULL;
+    size_t sizeCap = 0;
+    ssize_t lineLen = 0;
+    lineLen = getline(&line, &sizeCap, stdin);
+
+    int *indecies = isLineValid(dealer, line);
+    if (indecies != NULL) {
+        for (size_t i = 0; i < 5; i++) {
+            card *removedCard = removeCard(dealer, indecies[i]-1);
+            addCardToField(removedCard);
+        }
+
+        return 1;
+    }
+
+    return 0;
+}
+
+// Helper method to display the winner
+void displayWinner(player *dealer, player *reciever) {
+    printf("%s's score: %d. %s's score: %d\n", dealer->name, dealer->score,
+                        reciever->name, reciever->score);
+    if (dealer->score > reciever->score) {
+        printf("%s wins!\n", dealer->name);
+    } else if (reciever->score > dealer->score) {
+        printf("%s wins!\n", reciever->name);
+    } else {
+        printf("It's a tie!\n");
+    }
+}
+
+// Helper that controls the action card behavior
+int actionCardControl(player *dealer, player *reciever, card *actionCard) {
+    printf("To use action card, enter Y. To discard, enter N\n");
+    printf("If you use the action card and the value is even, you will take a random card from your opponent\n");
+    printf("And your opponents score will increase by the value. If the value is odd, you will give a random card\n");
+    printf("to your opponent but their score will decrease by the value of the card\n");
+    char *line = NULL;
+    size_t sizeCap = 0;
+    ssize_t lineLen = 0;
+
+    lineLen = getline(&line, &sizeCap, stdin);
+    line[lineLen-1] = '\0';
+
+    if (strcmp(line, "Y") == 0) {
+        card *removedCard;
+        if (actionCard->value % 2 == 0) {
+            removedCard = removeCard(reciever, (reciever->handSize)-1);
+            addCard(dealer, removedCard);
+        } else {
+            card *removedCard = removeCard(dealer, (dealer->handSize)-1);
+            addCard(reciever, removedCard);
+        }
+        changeScore(reciever, removedCard);
+
+        return 1;
+
+    } else if (strcmp(line, "N") == 0) {
+        card *removedCard =removeCard(dealer, (dealer->handSize)-1);
+        free(removedCard);
+        return 1;
+    }
+
+    return 0;
 }
 
 // Simple helper to print scores
@@ -244,6 +270,7 @@ void displayHand(card **hand, size_t len) {
     for (size_t i = 0; i < len; i++) {
         displayCard(hand[i], i);
     }
+    printf("\n");
 }
 
 // Helper to display a card
@@ -398,7 +425,7 @@ void chooseCardsOnField(player *dealer, player *reciever) {
     printf("\nYou picked: ");
     displayCard(field[index - 1], index - 1);
     changeScore(dealer, field[index - 1]);
-    printf("Your score: %d. Your opponent's score: %d\n", dealer->score, reciever->score);
+    printScores(dealer, reciever);
 
     char *line = NULL;
     size_t sizeCap = 0;
@@ -422,7 +449,7 @@ void chooseCardsOnField(player *dealer, player *reciever) {
             printf("\nYou picked: ");
             displayCard(field[index - 1], index - 1);
             changeScore(dealer, field[index - 1]);
-            printf("Your score: %d. Your opponent's score: %d\n", dealer->score, reciever->score);
+            printScores(dealer, reciever);
 
             if (flippedCards == 5) {
                 break;
