@@ -26,10 +26,12 @@ card *drawCards(player *p, int cardNum);
 void displayHand(card **hand, size_t len);
 void displayCard(card *displayCard, size_t index);
 card *removeCard(player *p, size_t index);
+void addCard(player *p, card *addedCard);
 void changeScore(player *p, card *addedCard);
 int *isLineValid(player *p, char *line);
 void addCardToField(card *addedCard);
 void sortDescending(int *arr, size_t n);
+void displayHiddenField(card **hiddenField);
 void chooseCardsOnField(player *dealer, player *reciever);
 
 // Static variables to keep track of the deck
@@ -49,8 +51,10 @@ int main(int argc, char *argv[]) {
 
     createDeck();
     field = (card**) malloc(sizeof(card*) * 5);
+
     player *playerOne = (player*) malloc(sizeof(player));
     initializePlayer(playerOne, argv[1]);
+
     player *playerTwo = (player*) malloc(sizeof(player));
     initializePlayer(playerTwo, argv[2]);
 
@@ -58,17 +62,18 @@ int main(int argc, char *argv[]) {
     // Each player should have 8 turns with 2 decks
     player *dealer = playerOne;
     player *reciever = playerTwo;
+    int roundCount = 0;
+
+    // This will clear the screen
+    printf("\e[1;1H\e[2J");
+    printf("%s's turn!\n\n", dealer->name);
 
     while (deckSize > 0) {
-        chooseCardsOnField(dealer, reciever);
-
         char *line = NULL;
         size_t sizeCap = 0;
         ssize_t lineLen = 0;
 
         // Clear screen hopefully
-        printf("\e[1;1H\e[2J");
-        printf("%s's turn!\n\n", dealer->name);
         printf("Current hand:\n");
         displayHand(dealer->hand, dealer->handSize);
         printf("\n");
@@ -124,8 +129,13 @@ int main(int argc, char *argv[]) {
         printf("Turn finished. Moving to %s's turn!\n", reciever->name);
         player *temp = dealer;
         dealer = reciever;
-        reciever = dealer;
+        reciever = temp;
         sleep(5);
+
+        // The new dealer will pick the cards
+        printf("\e[1;1H\e[2J");
+        printf("%s's turn!\n\n", dealer->name);
+        chooseCardsOnField(dealer, reciever);
     }
 
     printf("%s's score: %d. %s's score: %d\n", dealer->name, dealer->score,
@@ -260,6 +270,12 @@ card *removeCard(player *p, size_t index) {
     return removedCard;
 }
 
+// Adds a card to the players hand
+void addCard(player *p, card *addedCard) {
+    p->hand[p->handSize] = addedCard;
+    p->handSize++;
+}
+
 // Changes the score of the player based on the card
 void changeScore(player *p, card *addedCard) {
     if (addedCard->value % 2 == 0) {
@@ -328,12 +344,90 @@ void sortDescending(int *arr, size_t n) {
     }
 }
 
+// Helper method that will print out the hidden field for a player
+void displayHiddenField(card **hiddenField) {
+    for (size_t i = 0; i < 5; i++) {
+        if (hiddenField[i] == NULL) {
+            printf("%zu) [??? of ???]\n", i + 1);
+        } else {
+            displayCard(hiddenField[i], i);
+        }
+    }
+}
+
 // Method that will let the dealer choose cards from the field
 void chooseCardsOnField(player *dealer, player *reciever) {
-    // This means the game just started
-    if (fieldSize == 0) {
-        return;
+    card **hiddenField = (card**) calloc(5, sizeof(int));
+    int flippedCards = 0;
+    displayHiddenField(hiddenField);
+
+    int index = -1;
+    while (!(index >= 1 && index <= 5)) {
+        printf("Pick one card to flip (You must flip at least one card).\n");
+        scanf("%d", &index);
     }
 
+    hiddenField[index - 1] = field[index - 1];
+    flippedCards++;
+    printf("\nYou picked: ");
+    displayCard(field[index - 1], index - 1);
+    changeScore(dealer, field[index - 1]);
+    printf("Your score: %d. Your opponent's score: %d\n", dealer->score, reciever->score);
 
+    char *line = NULL;
+    size_t sizeCap = 0;
+    ssize_t lineLen = 0;
+
+    while (1) {
+        printf("\n");
+        displayHiddenField(hiddenField);
+        printf("Enter a index to flip another card. Otherwise, enter 'Done'\n");
+        lineLen = getline(&line, &sizeCap, stdin);
+        line[lineLen - 1] = '\0';
+
+        if (strcmp(line, "Done") == 0) {
+            break;
+        }
+
+        int index = atoi(line);
+        if (index >= 1 && index <= 5 && hiddenField[index - 1] == NULL) {
+            hiddenField[index - 1] = field[index - 1];
+            flippedCards++;
+            printf("\nYou picked: ");
+            displayCard(field[index - 1], index - 1);
+            changeScore(dealer, field[index - 1]);
+            printf("Your score: %d. Your opponent's score: %d\n", dealer->score, reciever->score);
+
+            if (flippedCards == 5) {
+                break;
+            }
+        }
+    }
+
+    if (flippedCards != 5 && dealer->handSize > 0) {
+        printf("\nThere are still hidden cards. Sacrifice a random card to your opponent and the hidden cards will be revealed\n");
+        while (1) {
+            printf("Enter Y to sacrifice. Enter N to pass.\n");
+            lineLen = getline(&line, &sizeCap, stdin);
+            line[lineLen-1] = '\0';
+
+            if (strcmp(line, "Y") == 0) {
+                card *removedCard = removeCard(dealer, dealer->handSize - 1);
+                break;
+
+            } else if (strcmp(line, "N") == 0) {
+                return;
+            }
+        }
+    }
+
+    displayHand(field, fieldSize);
+    while (1) {
+        printf("Enter Done to once finished viewing the cards\n");
+        lineLen = getline(&line, &sizeCap, stdin);
+        line[lineLen - 1] = '\0';
+        if (strcmp(line, "Done") == 0) {
+            break;
+        }
+    }
 }
