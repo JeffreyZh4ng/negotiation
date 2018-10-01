@@ -20,6 +20,7 @@ typedef struct player {
 
 // Forward declare functions
 void createDeck();
+void printScores(player *dealer, player *reciever);
 void shuffle(card **array, size_t n);
 void initializePlayer(player* p, char *name);
 card *drawCards(player *p, int cardNum);
@@ -82,17 +83,27 @@ int main(int argc, char *argv[]) {
         card *actionCard = drawCards(dealer, 1);
         printf("Action card: ");
         displayCard(actionCard, 0);
-        printf("Your score: %d. Your opponent's score: %d\n", dealer->score, reciever->score);
+        printScores(dealer, reciever);
 
         while (1) {
             printf("To use action card, enter Y. To discard, enter N\n");
+            printf("If you use the action card and the value is even, you will take a random card from your opponent\n");
+            printf("And your opponents score will increase by the value. If the value is odd, you will give a random card\n");
+            printf("to your opponent but their score will decrease by the value of the card\n");
             lineLen = getline(&line, &sizeCap, stdin);
             line[lineLen-1] = '\0';
 
             if (strcmp(line, "Y") == 0) {
-                card *removedCard =removeCard(dealer, (dealer->handSize)-1);
+                card *removedCard;
+                if (actionCard->value % 2 == 0) {
+                    removedCard = removeCard(reciever, (reciever->handSize)-1);
+                    addCard(dealer, removedCard);
+                } else {
+                    card *removedCard = removeCard(dealer, (dealer->handSize)-1);
+                    addCard(reciever, removedCard);
+                }
                 changeScore(reciever, removedCard);
-                free(removedCard);
+
                 break;
 
             } else if (strcmp(line, "N") == 0) {
@@ -158,6 +169,11 @@ void initializePlayer(player *p, char *name) {
     p->handSize = 0;
     p->score = 0;
     drawCards(p, 4);
+}
+
+// Simple helper to print scores
+void printScores(player *dealer, player *reciever) {
+    printf("Your score: %d. Your opponent's score: %d\n", dealer->score, reciever->score);
 }
 
 // Creates the playing deck with two standard decks
@@ -355,6 +371,16 @@ void displayHiddenField(card **hiddenField) {
     }
 }
 
+// Frees the cards in the field and resets the field;
+void clearField() {
+    for (size_t i = 0; i < 5; i++) {
+        free(field[i]);
+        field[i] = NULL;
+    }
+
+    fieldSize = 0;
+}
+
 // Method that will let the dealer choose cards from the field
 void chooseCardsOnField(player *dealer, player *reciever) {
     card **hiddenField = (card**) calloc(5, sizeof(int));
@@ -416,6 +442,7 @@ void chooseCardsOnField(player *dealer, player *reciever) {
                 break;
 
             } else if (strcmp(line, "N") == 0) {
+                clearField();
                 return;
             }
         }
